@@ -1,4 +1,4 @@
-# DDF / CORE Proof of Concetp (DDF3a Project)
+# DDF / CORE Proof of Concept (DDF3a Project)
 
 
 ![License: CC0-1.0](https://img.shields.io/badge/License-CC0_1.0-blue.svg)
