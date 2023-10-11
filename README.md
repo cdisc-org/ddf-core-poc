@@ -1,12 +1,5 @@
-# COSAHackathonTemplate
+# DDF / CORE Proof of Concetp (DDF3a Project)
 
-This is a template for COSA workshops/open source projects which could be used to create new projects.
-
-## How to use this template (remove this section)
-
-You can copy this template and use this for your open source project, workshops, hackathons or similar where participants should contribute content. Please update the README and other files depending on your requirements, project description etc. You find various "How Tos" documents if you or your expected contributors are not familar with setting up and working with repositories. Feel free to remove no longer applicable ones for your own repository.
-
-You might want to checkout [makeareadme.com](https://www.makeareadme.com) to gain additional guidance and options for a typical README file.
 
 ![License: CC0-1.0](https://img.shields.io/badge/License-CC0_1.0-blue.svg)
 
@@ -24,15 +17,12 @@ TODO:
 
 # *NAME* 
 
-This repository should be used for the *Project/Workshop/Hackathon XY* to contain code, minutes, notes, outcomes, discussions and more. It is meant to allow anyone working with the results and discussions to allow flexible collaboration and follow up projects.
+This repository should be used for the *DDF / CORE Proof of Concept Project* to contain code, minutes, notes, outcomes, discussions and more. It is meant to allow anyone working with the results and discussions to allow flexible collaboration and follow up projects. 
+
 
 ## Description
 
-The main purpose of *Project Name* is to ....
-
-If possible use images as well.
-
-![Image Description](./images/placeholder.png)
+This project will generate a Proof of Concept showing that Rules executed by the CDISC Open Rules Engine (CORE) can be an effective mechanism for validating the data in the DDF USDM Model.
 
 ## Contribution
 
