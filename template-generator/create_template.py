@@ -81,10 +81,13 @@ def get_properties(
         for x in usdmxmi.find_all("source", attrs={"xmi:idref": cls["xmi:id"]})
         if x.find_parent("connector").has_attr("name")
     ):
-        if lnk["name"] in entdict[entName]["Properties"]:
+        if lnk["name"] in entdict[lclsName if prefix else entName]["Properties"]:
             apiattr = (
-                entdict[entName]["Properties"][lnk["name"]]["apiattr"]
-                if "apiattr" in entdict[entName]["Properties"][lnk["name"]]
+                entdict[lclsName if prefix else entName]["Properties"][lnk["name"]][
+                    "apiattr"
+                ]
+                if "apiattr"
+                in entdict[lclsName if prefix else entName]["Properties"][lnk["name"]]
                 else None
             )
             if apiattr is None or apiattr == lnk["name"]:
@@ -108,7 +111,9 @@ def get_properties(
             else:
                 prps[0] += [".".join((prefix, apiattr)) if prefix else apiattr]
                 prps[1] += [
-                    entdict[entName]["Properties"][lnk["name"]]["Preferred Name"]
+                    entdict[lclsName if prefix else entName]["Properties"][lnk["name"]][
+                        "Preferred Name"
+                    ]
                 ]
                 prps[2] += ["{}.id".format(lnk.target.model["name"])]
                 prps[3] += ["[{}]".format(lnk.target.type["multiplicity"])]
