@@ -70,7 +70,11 @@ def get_properties(
         gcls = usdmxmi.find("packagedElement", attrs={"xmi:id": gclsId})
         gclsName = gcls["name"]
         get_properties(entName, gcls, prps, prefix, gclsName)
-    for prp in cls.find_all("ownedAttribute", attrs={"xmi:type": "uml:Property"}):
+    for prp in (
+        x
+        for x in cls.find_all("ownedAttribute", attrs={"xmi:type": "uml:Property"})
+        if x.has_attr("name")
+    ):
         prps[0] += [".".join((prefix, prp["name"])) if prefix else prp["name"]]
         prps[1] += [get_description(entName, prp, prps, prefix, lclsName)]
         attr = usdmxmi.find("attribute", attrs={"xmi:idref": str(prp["xmi:id"])})
@@ -329,10 +333,11 @@ for entName, entDef in entdict.items():
 for abscls in (
     x["name"]
     for x in usdmxmi.find_all("element", attrs={"xmi:type": "uml:Class"})
-    if x.properties["isAbstract"] == "true"
+    if x.properties["isAbstract"] == "true" or x["name"] not in apidict
 ):
     entdict.pop(abscls)
     print(f"Excluding abstract class '{abscls}'")
+
 
 workbook = xlsxwriter.Workbook(args.output_file)
 usdmver = (
@@ -452,6 +457,7 @@ for cls in (
         "isAbstract"
     ]
     == "false"
+    and x["name"] in apidict
 ):
     print(
         f"USDM class '{cls['name']}' defined in {args.xmi_file} does not "
