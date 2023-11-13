@@ -338,6 +338,12 @@ for abscls in (
     entdict.pop(abscls)
     print(f"Excluding abstract class '{abscls}'")
 
+for clsName, clsDef in apidict.items():
+    if clsName not in entdict:
+        print(f"No entry found in {args.ct_file} for API class '{clsName}' from {args.api_spec}")
+    else:
+        for prp in (x for x in clsDef.keys() if x != "id" and x not in entdict[clsName]["Properties"] and not any(k for k, v in entdict[clsName]["Properties"].items() if v["apiattr"] == x)):
+            print((f"No corresponding entry found in {args.ct_file} for API attribute '{clsName}.{prp}' from {args.api_spec}"))
 
 workbook = xlsxwriter.Workbook(args.output_file)
 usdmver = (
