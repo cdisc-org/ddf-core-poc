@@ -63,64 +63,128 @@ def replace_deep(data, a, b):
 
 
 def get_properties(
-    entName: str, cls: Tag, prps: list, prefix: str = None, lclsName: str = None
+    entName: str, cls: Tag, prps: list, prefix: list = None, lclsName: str = None
 ):
     if cls.generalization:
         gclsId = cls.generalization["general"]
         gcls = usdmxmi.find("packagedElement", attrs={"xmi:id": gclsId})
-        gclsName = gcls["name"]
-        get_properties(entName, gcls, prps, prefix, gclsName)
+        get_properties(entName, gcls, prps, prefix)
     for prp in (
         x
         for x in cls.find_all("ownedAttribute", attrs={"xmi:type": "uml:Property"})
         if x.has_attr("name")
     ):
-        prps[0] += [".".join((prefix, prp["name"])) if prefix else prp["name"]]
-        prps[1] += [get_description(entName, prp, prps, prefix, lclsName)]
         attr = usdmxmi.find("attribute", attrs={"xmi:idref": str(prp["xmi:id"])})
-        prps[2] += [attr.properties["type"]]
-        prps[3] += [get_card(attr.bounds)]
+        if attr.bounds["upper"] == "1":
+            prps[0] += [".".join((prefix[0], prp["name"])) if prefix else prp["name"]]
+            prps[1] += [
+                " / ".join(
+                    (prefix[1], get_description(lclsName or entName, prp["name"]))
+                )
+                if prefix
+                else get_description(lclsName or entName, prp["name"])
+            ]
+            prps[2] += [
+                "{}.{}: {}".format(prefix[2], prp["name"], attr.properties["type"])
+                if prefix
+                else attr.properties["type"]
+            ]
+            prps[3] += [
+                ".".join((prefix[3], get_card(attr.bounds)))
+                if prefix
+                else get_card(attr.bounds)
+            ]
     for lnk in (
         x.find_parent("connector")
         for x in usdmxmi.find_all("source", attrs={"xmi:idref": cls["xmi:id"]})
         if x.find_parent("connector").has_attr("name")
     ):
         if lnk["name"] in entdict[lclsName if prefix else entName]["Properties"]:
-            apiattr = (
-                entdict[lclsName if prefix else entName]["Properties"][lnk["name"]][
-                    "apiattr"
-                ]
-                if "apiattr"
-                in entdict[lclsName if prefix else entName]["Properties"][lnk["name"]]
-                else None
-            )
-            if apiattr is None or apiattr == lnk["name"]:
-                if lnk.target.type["multiplicity"].endswith("1"):
+            if lnk.target.type["multiplicity"].endswith("1"):
+                apiattr = (
+                    entdict[lclsName if prefix else entName]["Properties"][lnk["name"]][
+                        "apiattr"
+                    ]
+                    if "apiattr"
+                    in entdict[lclsName if prefix else entName]["Properties"][
+                        lnk["name"]
+                    ]
+                    else None
+                )
+                if apiattr is None or apiattr == lnk["name"]:
                     lcls = usdmxmi.find(
                         "packagedElement", attrs={"xmi:id": lnk.target["xmi:idref"]}
                     )
-                    if prefix and lnk["name"] in prefix.split("."):
+                    if prefix and lnk["name"] in prefix[0].split("."):
                         print(
                             f"Circular relationship found: {lnk['name']} found in "
-                            + prefix
+                            + prefix[0]
                         )
                     else:
                         get_properties(
                             entName,
                             lcls,
                             prps,
-                            ".".join((prefix, lnk["name"])) if prefix else lnk["name"],
+                            [
+                                ".".join((prefix[0], lnk["name"]))
+                                if prefix
+                                else lnk["name"],
+                                " / ".join(
+                                    (
+                                        prefix[1],
+                                        get_description(
+                                            lclsName or entName, lnk["name"]
+                                        ),
+                                    )
+                                )
+                                if prefix
+                                else get_description(lclsName or entName, lnk["name"]),
+                                ">".join((prefix[2], lcls["name"]))
+                                if prefix
+                                else lcls["name"],
+                                ">".join(
+                                    (
+                                        prefix[3],
+                                        "[{}]".format(lnk.target.type["multiplicity"]),
+                                    )
+                                )
+                                if prefix
+                                else "[{}]".format(lnk.target.type["multiplicity"]),
+                            ],
                             lcls["name"],
                         )
-            else:
-                prps[0] += [".".join((prefix, apiattr)) if prefix else apiattr]
-                prps[1] += [
-                    entdict[lclsName if prefix else entName]["Properties"][lnk["name"]][
-                        "Preferred Name"
+                else:
+                    prps[0] += [".".join((prefix[0], apiattr)) if prefix else apiattr]
+                    prps[1] += [
+                        "{} [{}]".format(
+                            " / ".join(
+                                (
+                                    prefix[1],
+                                    get_description(lclsName or entName, lnk["name"]),
+                                )
+                            )
+                            if prefix
+                            else get_description(lclsName or entName, lnk["name"]),
+                            "Identifier",
+                        )
                     ]
-                ]
-                prps[2] += ["{}.id".format(lnk.target.model["name"])]
-                prps[3] += ["[{}]".format(lnk.target.type["multiplicity"])]
+                    prps[2] += [
+                        ">".join(
+                            (
+                                prefix[2],
+                                "{}.id: String".format(lnk.target.model["name"]),
+                            )
+                        )
+                        if prefix
+                        else "{}.id: String".format(lnk.target.model["name"])
+                    ]
+                    prps[3] += [
+                        ">".join(
+                            (prefix[3], "[{}]".format(lnk.target.type["multiplicity"]))
+                        )
+                        if prefix
+                        else "[{}]".format(lnk.target.type["multiplicity"])
+                    ]
         elif not prefix:
             print(
                 f"Relationship '{entName}.{lnk['name']}' defined in {args.xmi_file} "
@@ -128,32 +192,23 @@ def get_properties(
             )
 
 
-def get_description(
-    entName: str, prp: Tag, prps: list, prefix: str = None, lclsName: str = None
-) -> str:
-    if prefix:
-        # If we're following a link, use the linked class attribute
-        # if it's there, otherwise (usually for id) try to use the link
-        # name as the attribute.
-        if prp["name"] in entdict[lclsName]["Properties"]:
-            return entdict[lclsName]["Properties"][prp["name"]]["Preferred Name"]
-        elif "".join(prefix.split(".")[-1:]) in entdict[entName]["Properties"]:
-            return entdict[entName]["Properties"]["".join(prefix.split(".")[-1:])][
-                "Preferred Name"
-            ]
-        else:
-            return None
+def get_description(entName: str, prpName: str = None) -> str:
+    if (
+        prpName in entdict[entName]["Properties"]
+        and entdict[entName]["Properties"][prpName]["Preferred Name"]
+    ):
+        return entdict[entName]["Properties"][prpName]["Preferred Name"]
     else:
-        # If this is a normal class, just use it's attribute.
-        if prp["name"] in entdict[entName]["Properties"]:
-            return entdict[entName]["Properties"][prp["name"]]["Preferred Name"]
-        else:
-            if prp["name"] != "id":
-                print(
-                    f"No entry found in {args.ct_file} for USDM "
-                    + f"attribute '{entName}.{prp['name']}'"
-                )
-            return None
+        if not (prpName in entdict[entName]["Properties"] or prpName == "id"):
+            print(
+                f"No entry found in {args.ct_file} for USDM "
+                + f"attribute '{entName}.{prpName}'"
+            )
+        return "({} {})".format(name_to_desc(entName), name_to_desc(prpName))
+
+
+def name_to_desc(name: str) -> str:
+    return re.sub("([A-Z]+)", r" \1", name).strip().title()
 
 
 def get_card(bounds: Tag) -> str:
@@ -374,6 +429,7 @@ workbook.set_custom_property("USDM Version", str(usdmver))
 header = workbook.add_format()
 header.set_bold()
 header.set_align("top")
+header.set_text_wrap()
 
 sub_header = workbook.add_format()
 sub_header.set_italic()
@@ -459,7 +515,7 @@ for entName in entdict.keys():
             ] + prps[1]
             prps[2] = ["String", "String", "String"] + prps[2]
             prps[3] = ["[1]", "[1]", "[1]"] + prps[3]
-        ws.set_column(0, len(prps[0]), 20)
+        ws.set_column(0, len(prps[0]), 25)
         ws.write_row(0, 0, prps[0], header)
         ws.write_row(1, 0, prps[1], sub_header)
         ws.write_row(2, 0, prps[2], sub_header)
@@ -487,5 +543,30 @@ for cls in (
         f"USDM class '{cls['name']}' defined in {args.xmi_file} does not "
         + f"have a matching Entity in {args.ct_file}"
     )
+
+clsn += 1
+dsws.write_url(
+    clsn, 0, "internal:'Multiple_Values.xpt'!A1", string="Multiple_Values.xpt"
+)
+dsws.write_row(clsn, 1, ["Multiple_Values", "Multiple Values"])
+ws = workbook.add_worksheet("Multiple_Values.xpt")
+ws.set_column(0, 4, 25)
+ws.write_row(0, 0, ["parent_entity", "parent_id", "parent_attr", "value"], header)
+ws.write_row(
+    1,
+    0,
+    [
+        "Parent Entity Name",
+        "Parent Entity Id",
+        "Name of Multi-value Attribute in Parent Entity",
+        "Value",
+    ],
+    sub_header,
+)
+ws.write_row(2, 0, ["String"] * 4, sub_header)
+ws.write_row(3, 0, ["[1]"] * 4, sub_header)
+# Add a blank row with defined format to prevent auto-copying of format
+# from row above.
+ws.write_row(4, 0, [None] * 4, normal)
 
 workbook.close()
