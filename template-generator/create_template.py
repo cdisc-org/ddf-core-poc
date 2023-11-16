@@ -84,13 +84,9 @@ def get_properties(
                 if prefix
                 else get_description(lclsName or entName, prp["name"])
             ]
-            prps[2] += [
-                "{}.{}: {}".format(prefix[2], prp["name"], attr.properties["type"])
-                if prefix
-                else attr.properties["type"]
-            ]
+            prps[2] += [attr.properties["type"]]
             prps[3] += [
-                ".".join((prefix[3], get_card(attr.bounds)))
+                "{}.{}{}".format(prefix[2], prp["name"], get_card(attr.bounds))
                 if prefix
                 else get_card(attr.bounds)
             ]
@@ -139,17 +135,19 @@ def get_properties(
                                 )
                                 if prefix
                                 else get_description(lclsName or entName, lnk["name"]),
-                                ">".join((prefix[2], lcls["name"]))
-                                if prefix
-                                else lcls["name"],
                                 ">".join(
                                     (
-                                        prefix[3],
-                                        "[{}]".format(lnk.target.type["multiplicity"]),
+                                        prefix[2],
+                                        "{}[{}]".format(
+                                            lcls["name"],
+                                            lnk.target.type["multiplicity"],
+                                        ),
                                     )
                                 )
                                 if prefix
-                                else "[{}]".format(lnk.target.type["multiplicity"]),
+                                else "{}[{}]".format(
+                                    lcls["name"], lnk.target.type["multiplicity"]
+                                ),
                             ],
                             lcls["name"],
                         )
@@ -168,22 +166,21 @@ def get_properties(
                             "Identifier",
                         )
                     ]
-                    prps[2] += [
+                    prps[2] += ["String"]
+                    prps[3] += [
                         ">".join(
                             (
                                 prefix[2],
-                                "{}.id: String".format(lnk.target.model["name"]),
+                                "{}[{}].id[1]".format(
+                                    lnk.target.model["name"],
+                                    lnk.target.type["multiplicity"],
+                                ),
                             )
                         )
                         if prefix
-                        else "{}.id: String".format(lnk.target.model["name"])
-                    ]
-                    prps[3] += [
-                        ">".join(
-                            (prefix[3], "[{}]".format(lnk.target.type["multiplicity"]))
+                        else "{}[{}].id[1]".format(
+                            lnk.target.model["name"], lnk.target.type["multiplicity"]
                         )
-                        if prefix
-                        else "[{}]".format(lnk.target.type["multiplicity"])
                     ]
         elif not prefix:
             print(
