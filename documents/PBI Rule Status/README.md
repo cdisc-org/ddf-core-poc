@@ -51,7 +51,7 @@ Download a CSV file from the CORE Rules Editor:
 #### When opening the PBI Rule Status file:
 
 - You may be prompted to enable macros and/or enable external content.  If prompted, click the "Enable..." button.
-- All information will be automatically refreshed.  When prompted, navigate to and select the downlowed Rules CSV file in the "Select Downloaded Rules CSV File" dialog and click the "Load" button.
+- All information will be automatically refreshed.  When prompted, navigate to and select the downloaded Rules CSV file in the "Select Downloaded Rules CSV File" dialog and click the "Load" button.
 
 #### To refresh information when the PBI Rule Status file is already open:
 
