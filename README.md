@@ -48,6 +48,4 @@ When you want to re-use and refer to the content, please do so like the followin
 
 > Content based on [Project XY (GitHub)](https://github.com/xy/xy) used under the [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/) license.
 
-
-
-
+*Latest update 2024-02-22*
