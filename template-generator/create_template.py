@@ -44,8 +44,9 @@ def parse_arguments():
         "-o",
         "--output_file",
         help="[Optional] Specifies output file Excel file. "
-        + "Default is ./USDM_Test_Data_Template.xlsx",
-        default="USDM_Test_Data_Template.xlsx",
+        + "Default is ./USDM_<USDM version>_Test_Data_Template.xlsx"
+        + "(e.g., USDM_2.6_Test_Data_Template.xlsx)",
+        default="USDM_<USDM version>_Test_Data_Template.xlsx",
     )
     args = parser.parse_args()
     return args
@@ -62,40 +63,125 @@ def replace_deep(data, a, b):
         return data
 
 
+def get_api_desc(prp: str, prpDict: dict) -> str:
+    if "type" in prpDict and prpDict["type"] == "array":
+        return name_to_desc(prp) + " [Any Exist]"
+    elif "$ref" in prpDict or (
+        "anyOf" in prpDict and any("$ref" in x for x in prpDict["anyOf"])
+    ):
+        return name_to_desc(prp) + " [Exists]"
+    else:
+        return name_to_desc(prp)
+
+
+def get_api_type(prpDict: dict) -> str:
+    if (
+        ("type" in prpDict and prpDict["type"] == "array")
+        or "$ref" in prpDict
+        or ("anyOf" in prpDict and any("$ref" in x for x in prpDict["anyOf"]))
+    ):
+        return "Boolean"
+    elif "const" in prpDict:
+        return "String"
+    elif "type" in prpDict:
+        return prpDict["type"].title()
+    elif "anyOf" in prpDict:
+        return "".join(
+            x["type"].title()
+            for x in prpDict["anyOf"]
+            if "type" in x and x["type"] != "'null'"
+        )
+    else:
+        return "!!UNKNOWN API TYPE!!"
+
+
 def get_properties(
     entName: str, cls: Tag, prps: list, prefix: list = None, lclsName: str = None
 ):
     if cls.generalization:
         gclsId = cls.generalization["general"]
         gcls = usdmxmi.find("packagedElement", attrs={"xmi:id": gclsId})
-        get_properties(entName, gcls, prps, prefix)
+        get_properties(entName, gcls, prps, prefix, cls["name"])
     for prp in (
         x
         for x in cls.find_all("ownedAttribute", attrs={"xmi:type": "uml:Property"})
         if x.has_attr("name")
     ):
         attr = usdmxmi.find("attribute", attrs={"xmi:idref": str(prp["xmi:id"])})
-        if attr.bounds["upper"] == "1":
-            prps[0] += [".".join((prefix[0], prp["name"])) if prefix else prp["name"]]
-            prps[1] += [
+        prps[0] += [".".join((prefix[0], prp["name"])) if prefix else prp["name"]]
+        prps[1] += [
+            (
                 " / ".join(
                     (prefix[1], get_description(lclsName or entName, prp["name"]))
                 )
                 if prefix
                 else get_description(lclsName or entName, prp["name"])
-            ]
-            prps[2] += [attr.properties["type"]]
-            prps[3] += [
-                "{}.{}{}".format(prefix[2], prp["name"], get_card(attr.bounds))
-                if prefix
-                else get_card(attr.bounds)
-            ]
+            )
+            + ""
+            if attr.bounds["upper"] == "1"
+            else " [Any Exist]"
+        ]
+        prps[2] += [
+            attr.properties["type"] if attr.bounds["upper"] == "1" else "Boolean"
+        ]
+        prps[3] += [
+            "{}.{}{}".format(prefix[2], prp["name"], get_card(attr.bounds))
+            if prefix
+            else get_card(attr.bounds)
+        ]
+    if not prefix:
+        for prp in (
+            x
+            for x in apidict[entName].keys()
+            if x != "id"
+            and x not in entdict[entName]["Properties"]
+            and not any(
+                k
+                for k, v in entdict[entName]["Properties"].items()
+                if v["apiattr"] == x
+            )
+        ):
+            prps[0] += [prp]
+            prps[1] += [get_api_desc(prp, apidict[entName][prp])]
+            prps[2] += [get_api_type(apidict[entName][prp])]
+            prps[3] += ["[1]" if apidict[entName][prp]["required"] is True else "[0]"]
+            print(
+                (
+                    "API-only attribute "
+                    + f"'{entName}.{prp}' added from {args.api_spec}"
+                )
+            )
+
     for lnk in (
         x.find_parent("connector")
         for x in usdmxmi.find_all("source", attrs={"xmi:idref": cls["xmi:id"]})
         if x.find_parent("connector").has_attr("name")
     ):
         if lnk["name"] in entdict[lclsName if prefix else entName]["Properties"]:
+            lcls = usdmxmi.find(
+                "packagedElement", attrs={"xmi:id": lnk.target["xmi:idref"]}
+            )
+            if prefix:
+                lnkName = ".".join((prefix[0], lnk["name"]))
+                lnkDesc = " / ".join(
+                    (
+                        prefix[1],
+                        get_description(lclsName or entName, lnk["name"]),
+                    )
+                )
+                lnkCard = ">".join(
+                    (
+                        prefix[2],
+                        "{}[{}]".format(
+                            lcls["name"],
+                            lnk.target.type["multiplicity"],
+                        ),
+                    )
+                )
+            else:
+                lnkName = lnk["name"]
+                lnkDesc = get_description(lclsName or entName, lnk["name"])
+                lnkCard = "{}[{}]".format(lcls["name"], lnk.target.type["multiplicity"])
             if lnk.target.type["multiplicity"].endswith("1"):
                 apiattr = (
                     entdict[lclsName if prefix else entName]["Properties"][lnk["name"]][
@@ -108,46 +194,24 @@ def get_properties(
                     else None
                 )
                 if apiattr is None or apiattr == lnk["name"]:
-                    lcls = usdmxmi.find(
-                        "packagedElement", attrs={"xmi:id": lnk.target["xmi:idref"]}
-                    )
                     if prefix and lnk["name"] in prefix[0].split("."):
                         print(
                             f"Circular relationship found: {lnk['name']} found in "
                             + prefix[0]
                         )
                     else:
+                        prps[0] += [lnkName]
+                        prps[1] += [lnkDesc + " [Exists]"]
+                        prps[2] += ["Boolean"]
+                        prps[3] += [lnkCard]
                         get_properties(
                             entName,
                             lcls,
                             prps,
                             [
-                                ".".join((prefix[0], lnk["name"]))
-                                if prefix
-                                else lnk["name"],
-                                " / ".join(
-                                    (
-                                        prefix[1],
-                                        get_description(
-                                            lclsName or entName, lnk["name"]
-                                        ),
-                                    )
-                                )
-                                if prefix
-                                else get_description(lclsName or entName, lnk["name"]),
-                                ">".join(
-                                    (
-                                        prefix[2],
-                                        "{}[{}]".format(
-                                            lcls["name"],
-                                            lnk.target.type["multiplicity"],
-                                        ),
-                                    )
-                                )
-                                if prefix
-                                else "{}[{}]".format(
-                                    lcls["name"], lnk.target.type["multiplicity"]
-                                ),
+                                lnkName,
+                                lnkDesc,
+                                lnkCard,
                             ],
                             lcls["name"],
                         )
@@ -182,6 +246,11 @@ def get_properties(
                             lnk.target.model["name"], lnk.target.type["multiplicity"]
                         )
                     ]
+            else:
+                prps[0] += [lnkName]
+                prps[1] += [lnkDesc + " [Any Exist]"]
+                prps[2] += ["Boolean"]
+                prps[3] += [lnkCard]
         elif not prefix:
             print(
                 f"Relationship '{entName}.{lnk['name']}' defined in {args.xmi_file} "
@@ -230,6 +299,11 @@ def get_apiattr(entName: str, elname: str, elrole: str) -> str:
             ):
                 if elname + "Id" in apidict[entName]:
                     return elname + "Id"
+                elif (
+                    inflect.singular_noun(elprts[-1]) == elprts[-1]
+                    and elname + "Ids" in apidict[entName]
+                ):
+                    return elname + "Ids"
                 else:
                     print(
                         f"No entry found in {args.api_spec} for '{entName}."
@@ -316,9 +390,13 @@ for k, v in apispec["components"]["schemas"].items():
         cname = k
 
     apidict[cname] = deepcopy(v["properties"])
+    for apiattn, apiattv in apidict[cname].items():
+        apiattv["required"] = "required" in v and apiattn in v["required"]
 
 inflect = inflect.engine()
 inflect.defnoun("previous", "previous")
+inflect.defnoun("context", "context")
+inflect.defnoun("to", "to")
 
 entdict = {}
 
@@ -326,10 +404,12 @@ ctwb = openpyxl.load_workbook(filename=args.ct_file, data_only=True)
 
 ctws = ctwb["DDF Entities&Attributes"]
 
+ctcolmap = {ctcol.value: ctcol.column - 1 for ctcol in tuple(ctws.rows)[0]}
+
 for ctrow in ctws.iter_rows(min_row=2):
-    entName = ctrow[1].value
-    elrole = ctrow[2].value
-    elname = ctrow[3].value
+    entName = ctrow[ctcolmap["Entity Name"]].value
+    elrole = ctrow[ctcolmap["Role"]].value
+    elname = ctrow[ctcolmap["Logical Data Model Name"]].value
     if elrole == "Entity":
         if elname != entName:
             print(
@@ -337,21 +417,23 @@ for ctrow in ctws.iter_rows(min_row=2):
                 + f"Name for Entity '{elname}'"
             )
         entdict[entName] = {
-            "NCI C-code": ctrow[4].value,
-            "Preferred Name": ctrow[5].value,
-            "Definition": ctrow[7].value,
+            "NCI C-code": ctrow[ctcolmap["NCI C-code"]].value,
+            "Preferred Name": ctrow[ctcolmap["CT Item Preferred Name"]].value,
+            "Definition": ctrow[ctcolmap["Definition"]].value,
             "Properties": {},
         }
     else:
         cref: str = None
-        cref = re.search(r"^Y \((.+?)\)$", str(ctrow[8].value).strip())
+        cref = re.search(
+            r"^Y \((.+?)\)$", str(ctrow[ctcolmap["Has Value List"]].value).strip()
+        )
 
         entdict[entName]["Properties"][elname] = {
             "name": elname,
             "Role": elrole,
-            "NCI C-code": ctrow[4].value,
-            "Preferred Name": ctrow[5].value,
-            "Definition": ctrow[7].value,
+            "NCI C-code": ctrow[ctcolmap["NCI C-code"]].value,
+            "Preferred Name": ctrow[ctcolmap["CT Item Preferred Name"]].value,
+            "Definition": ctrow[ctcolmap["CT Item Preferred Name"]].value,
             "CodelistRef": cref.group(1) if cref else None,
         }
 
@@ -387,8 +469,11 @@ for abscls in (
     for x in usdmxmi.find_all("element", attrs={"xmi:type": "uml:Class"})
     if x.properties["isAbstract"] == "true" or x["name"] not in apidict
 ):
-    entdict.pop(abscls)
-    print(f"Excluding abstract class '{abscls}'")
+    if abscls in entdict:
+        entdict.pop(abscls)
+        print(f"Excluding abstract class '{abscls}'")
+    else:
+        print(f"Abstract class {abscls} not found in {args.ct_file}")
 
 for clsName, clsDef in apidict.items():
     if clsName not in entdict:
@@ -415,12 +500,13 @@ for clsName, clsDef in apidict.items():
                 )
             )
 
-workbook = xlsxwriter.Workbook(args.output_file)
 usdmver = (
     usdmxmi.find("properties", {"name": "USDM", "type": "Logical"})
     .find_parent("diagram")
     .project["version"]
 )
+
+workbook = xlsxwriter.Workbook(args.output_file.replace("<USDM version>", usdmver))
 workbook.set_custom_property("USDM Version", str(usdmver))
 
 header = workbook.add_format()
@@ -503,15 +589,15 @@ for entName in entdict.keys():
                 + "does not have a matching attribute or relationship in "
                 + args.xmi_file
             )
-        if entName != "Study":
-            prps[0] = ["parent_entity", "parent_id", "parent_rel"] + prps[0]
-            prps[1] = [
-                "Parent Entity Name",
-                "Parent Entity Id",
-                "Name of Relationship from Parent Entity",
-            ] + prps[1]
-            prps[2] = ["String", "String", "String"] + prps[2]
-            prps[3] = ["[1]", "[1]", "[1]"] + prps[3]
+        prps[0] = ["parent_entity", "parent_id", "parent_rel", "rel_type"] + prps[0]
+        prps[1] = [
+            "Parent Entity Name",
+            "Parent Entity Id",
+            "Name of Relationship from Parent Entity",
+            "Type of Relationship",
+        ] + prps[1]
+        prps[2] = ["String", "String", "String", "String"] + prps[2]
+        prps[3] = ["[1]", "[1]", "[1]", "[1]"] + prps[3]
         ws.set_column(0, len(prps[0]), 25)
         ws.write_row(0, 0, prps[0], header)
         ws.write_row(1, 0, prps[1], sub_header)
@@ -541,29 +627,32 @@ for cls in (
         + f"have a matching Entity in {args.ct_file}"
     )
 
-clsn += 1
-dsws.write_url(
-    clsn, 0, "internal:'Multiple_Values.xpt'!A1", string="Multiple_Values.xpt"
-)
-dsws.write_row(clsn, 1, ["Multiple_Values", "Multiple Values"])
-ws = workbook.add_worksheet("Multiple_Values.xpt")
-ws.set_column(0, 4, 25)
-ws.write_row(0, 0, ["parent_entity", "parent_id", "parent_attr", "value"], header)
-ws.write_row(
-    1,
-    0,
-    [
-        "Parent Entity Name",
-        "Parent Entity Id",
-        "Name of Multi-value Attribute in Parent Entity",
-        "Value",
-    ],
-    sub_header,
-)
-ws.write_row(2, 0, ["String"] * 4, sub_header)
-ws.write_row(3, 0, ["[1]"] * 4, sub_header)
-# Add a blank row with defined format to prevent auto-copying of format
-# from row above.
-ws.write_row(4, 0, [None] * 4, normal)
+for pdtype in ["String", "Float", "Boolean", "Null"]:
+    clsn += 1
+    dsname = pdtype.lower()
+    dsws.write_url(clsn, 0, f"internal:'{dsname}.xpt'!A1", string=f"{dsname}.xpt")
+    dsws.write_row(clsn, 1, [dsname, f"{pdtype} Values"])
+    ws = workbook.add_worksheet(f"{dsname}.xpt")
+    ws.set_column(0, 4, 25)
+    ws.write_row(
+        0, 0, ["parent_entity", "parent_id", "parent_rel", "rel_type", "value"], header
+    )
+    ws.write_row(
+        1,
+        0,
+        [
+            "Parent Entity Name",
+            "Parent Entity Id",
+            "Name of Relationship from Parent Entity",
+            "Type of Relationship",
+            "Value",
+        ],
+        sub_header,
+    )
+    ws.write_row(2, 0, ["String"] * 5, sub_header)
+    ws.write_row(3, 0, ["[1]"] * 4 + ["[0]" if pdtype == "Null" else "[1]"], sub_header)
+    # Add a blank row with defined format to prevent auto-copying of format
+    # from row above.
+    ws.write_row(4, 0, [None] * 5, normal)
 
 workbook.close()
