@@ -182,39 +182,61 @@ def get_properties(
                 lnkName = lnk["name"]
                 lnkDesc = get_description(lclsName or entName, lnk["name"])
                 lnkCard = "{}[{}]".format(lcls["name"], lnk.target.type["multiplicity"])
-            if lnk.target.type["multiplicity"].endswith("1"):
-                apiattr = (
-                    entdict[lclsName if prefix else entName]["Properties"][lnk["name"]][
-                        "apiattr"
+            apiattr = (
+                entdict[lclsName if prefix else entName]["Properties"][lnk["name"]][
+                    "apiattr"
+                ]
+                if "apiattr"
+                in entdict[lclsName if prefix else entName]["Properties"][lnk["name"]]
+                else None
+            )
+            single_lnk = lnk.target.type["multiplicity"].endswith("1")
+            if apiattr is None or apiattr == lnk["name"]:
+                if prefix and lnk["name"] in prefix[0].split("."):
+                    print(
+                        f"Circular relationship found: {lnk['name']} found in "
+                        + prefix[0]
+                    )
+                else:
+                    prps[0] += [lnkName]
+                    prps[1] += [
+                        lnkDesc + (" [Exists]" if single_lnk else " [Any Exists]")
                     ]
-                    if "apiattr"
-                    in entdict[lclsName if prefix else entName]["Properties"][
-                        lnk["name"]
-                    ]
-                    else None
-                )
-                if apiattr is None or apiattr == lnk["name"]:
-                    if prefix and lnk["name"] in prefix[0].split("."):
-                        print(
-                            f"Circular relationship found: {lnk['name']} found in "
-                            + prefix[0]
+                    prps[2] += ["Boolean"]
+                    prps[3] += [lnkCard]
+                if single_lnk:
+                    get_properties(
+                        entName,
+                        lcls,
+                        prps,
+                        [
+                            lnkName,
+                            lnkDesc,
+                            lnkCard,
+                        ],
+                        lcls["name"],
+                    )
+            else:
+                if (".".join((prefix[0], apiattr)) if prefix else apiattr) in prps[0]:
+                    prps[3][
+                        prps[0].index(
+                            ".".join((prefix[0], apiattr)) if prefix else apiattr
                         )
-                    else:
-                        prps[0] += [lnkName]
-                        prps[1] += [lnkDesc + " [Exists]"]
-                        prps[2] += ["Boolean"]
-                        prps[3] += [lnkCard]
-                        get_properties(
-                            entName,
-                            lcls,
-                            prps,
-                            [
-                                lnkName,
-                                lnkDesc,
-                                lnkCard,
-                            ],
-                            lcls["name"],
+                    ] += " / {}".format(
+                        ">".join(
+                            (
+                                prefix[2],
+                                "{}[{}].id[1]".format(
+                                    lnk.target.model["name"],
+                                    lnk.target.type["multiplicity"],
+                                ),
+                            )
                         )
+                        if prefix
+                        else "{}[{}].id[1]".format(
+                            lnk.target.model["name"], lnk.target.type["multiplicity"]
+                        )
+                    )
                 else:
                     prps[0] += [".".join((prefix[0], apiattr)) if prefix else apiattr]
                     prps[1] += [
@@ -227,10 +249,10 @@ def get_properties(
                             )
                             if prefix
                             else get_description(lclsName or entName, lnk["name"]),
-                            "Identifier",
+                            "Identifier" if single_lnk else "Identifiers][Any Exist",
                         )
                     ]
-                    prps[2] += ["String"]
+                    prps[2] += ["String" if single_lnk else "Boolean"]
                     prps[3] += [
                         ">".join(
                             (
@@ -246,11 +268,6 @@ def get_properties(
                             lnk.target.model["name"], lnk.target.type["multiplicity"]
                         )
                     ]
-            else:
-                prps[0] += [lnkName]
-                prps[1] += [lnkDesc + " [Any Exist]"]
-                prps[2] += ["Boolean"]
-                prps[3] += [lnkCard]
         elif not prefix:
             print(
                 f"Relationship '{entName}.{lnk['name']}' defined in {args.xmi_file} "
