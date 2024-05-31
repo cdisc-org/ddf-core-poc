@@ -12,8 +12,8 @@ options:
   -c CT_FILE, --ct_file CT_FILE
                         USDM CT Excel file (e.g., <DDF version>/Deliverables/CT/USDM_CT.xlsx)
   -a API_SPEC, --api_spec API_SPEC
-                        USDM API specification YAML file. (e.g., <DDF version>/Deliverables/API/USDM_API.yaml)
+                        USDM API specification YAML file (e.g., <DDF version>/Deliverables/API/USDM_API.yaml)
   -o OUTPUT_FILE, --output_file OUTPUT_FILE
-                        [Optional] Specifies output file Excel file. Default is ./USDM_Test_Data_Template.xlsx
+                        [Optional] Specifies output file Excel file. Default is ./USDM_<USDM version>_Test_Data_Template.xlsx(e.g., USDM_2.6_Test_Data_Template.xlsx)
 ```
 
