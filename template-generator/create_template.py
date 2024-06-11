@@ -129,7 +129,7 @@ def get_properties(
             if prefix
             else get_card(attr.bounds)
         ]
-    if not prefix:
+    if not prefix and cls["name"] == entName:
         for prp in (
             x
             for x in apidict[entName].keys()
