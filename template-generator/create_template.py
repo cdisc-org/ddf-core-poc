@@ -192,7 +192,9 @@ def get_properties(
             )
             single_lnk = lnk.target.type["multiplicity"].endswith("1")
             if apiattr is None or apiattr == lnk["name"]:
+                isCircular: bool = False
                 if prefix and lnk["name"] in prefix[0].split("."):
+                    isCircular = True
                     print(
                         f"Circular relationship found: {lnk['name']} found in "
                         + prefix[0]
@@ -204,7 +206,7 @@ def get_properties(
                     ]
                     prps[2] += ["Boolean"]
                     prps[3] += [lnkCard]
-                if single_lnk:
+                if single_lnk and not isCircular:
                     get_properties(
                         entName,
                         lcls,
@@ -414,6 +416,7 @@ inflect = inflect.engine()
 inflect.defnoun("previous", "previous")
 inflect.defnoun("context", "context")
 inflect.defnoun("to", "to")
+inflect.defnoun("of", "of")
 
 entdict = {}
 
